@@ -41,6 +41,11 @@ class Metabolite(Species):
         self._bound = 0.
 
     @property
+    def constraint(self):
+        if self.model is not None:
+            return self.model.solver.constraints[self.id]
+
+    @property
     def elements(self):
         tmp_formula = self.formula
         if tmp_formula is None:

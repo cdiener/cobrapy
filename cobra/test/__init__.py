@@ -43,11 +43,8 @@ def create_test_model(model_name="salmonella"):
         return read_sbml_model(textbook_sbml)
     elif model_name == "mini":
         return read_sbml_model(mini_sbml)
-
-    if model_name == "salmonella":
-        model_name = salmonella_pickle
-    with open(model_name, "rb") as infile:
-        return _load(infile)
+    elif model_name == "salmonella":
+        return read_sbml_model(salmonella_sbml)
 
 
 def create_test_suite():

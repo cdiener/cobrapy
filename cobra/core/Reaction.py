@@ -11,6 +11,11 @@ from .Object import Object
 from .Gene import Gene, parse_gpr, ast2str
 from .Metabolite import Metabolite
 
+# from cameo ...
+
+from functools import partial
+import hashlib
+
 
 class Frozendict(dict):
     """Read-only dictionary view"""
@@ -76,13 +81,239 @@ class Reaction(Object):
         # contains self
         self._model = None
 
-        self.objective_coefficient = objective_coefficient
-        self.upper_bound = upper_bound
-        self.lower_bound = lower_bound
+        self._objective_coefficient = objective_coefficient
+        # the following two lines are commented out
+        # self.upper_bound = upper_bound
+        # self.lower_bound = lower_bound
         # Used during optimization.  Indicates whether the
         # variable is modeled as continuous, integer, binary, semicontinous, or
         # semiinteger.
         self.variable_kind = 'continuous'
+
+        # from cameo ...
+        self._lower_bound = lower_bound
+        self._upper_bound = upper_bound
+
+        self._reverse_variable = None
+        self._forward_variable = None
+
+
+    # from cameo ...
+
+    @property
+    def reversibility(self):
+        return self._lower_bound < 0 < self._upper_bound
+
+    def _get_reverse_id(self):
+        """Generate the id of reverse_variable from the reaction's id."""
+        return '_'.join((self.id, 'reverse', hashlib.md5(self.id.encode('utf-8')).hexdigest()[0:5]))
+
+    def _get_forward_id(self):
+        """Generate the id of forward_variable from the reaction's id."""
+        return self.id
+        # return '_'.join((self.id, 'forward', hashlib.md5(self.id.encode('utf-8')).hexdigest()[0:5]))
+
+    @property
+    def flux_expression(self):
+        """An optlang variable representing the forward flux (if associated with model), otherwise None.
+        Representing the net flux if model.reversible_encoding == 'unsplit'"""
+        model = self.model
+        if model is not None:
+            return 1. * self.forward_variable - 1. * self.reverse_variable
+        else:
+            return None
+
+    @property
+    def forward_variable(self):
+        """An optlang variable representing the forward flux (if associated with model), otherwise None."""
+        model = self.model
+        if model is not None:
+            if self._forward_variable is None:
+                self._forward_variable = model.solver.variables[self._get_forward_id()]
+            assert self._forward_variable.problem is self.model.solver
+
+            return self._forward_variable
+            # return model.solver.variables[self._get_forward_id()]
+        else:
+            return None
+
+    @property
+    def reverse_variable(self):
+        """An optlang variable representing the reverse flux (if associated with model), otherwise None."""
+        model = self.model
+        if model is not None:
+            if self._reverse_variable is None:
+                self._reverse_variable = model.solver.variables[self._get_reverse_id()]
+            assert self._reverse_variable.problem is self.model.solver
+            return self._reverse_variable
+            # return model.solver.variables[self._get_reverse_id()]
+        else:
+            return None
+
+    def _reset_var_cache(self):
+        self._forward_variable = None
+        self._reverse_variable = None
+
+    @property
+    def objective_coefficient(self):
+        if self.model is not None and self.model.objective is not None:
+            coefficients_dict = self.model.objective.expression.as_coefficients_dict()
+            forw_coef = coefficients_dict.get(self.forward_variable, 0)
+            rev_coef = coefficients_dict.get(self.reverse_variable, 0)
+            if forw_coef == -rev_coef:
+                self._objective_coefficient = float(forw_coef)
+            else:
+                self._objective_coefficient = 0
+        return self._objective_coefficient
+
+    @objective_coefficient.setter
+    def objective_coefficient(self, value):
+        model = self.model
+        if model is not None:
+            coef_difference = value - self.objective_coefficient
+            model.objective += coef_difference * self.flux_expression
+        self._objective_coefficient = value
+
+
+    def __copy__(self):
+        cop = copy(super(Reaction, self))
+        cop._reset_var_cache()
+        return cop
+
+    def __deepcopy__(self, memo):
+        cop = deepcopy(super(Reaction, self), memo)
+        cop._reset_var_cache()
+        return cop
+
+    @property
+    def lower_bound(self):
+        return self._lower_bound
+
+    @lower_bound.setter
+    def lower_bound(self, value):
+        model = self.model
+
+        if model is not None:
+
+            forward_variable, reverse_variable = self.forward_variable, self.reverse_variable
+            if self._lower_bound < 0 < self._upper_bound:  # reversible
+                if value < 0:
+                    reverse_variable.ub = -1 * value
+                elif value >= 0:
+                    reverse_variable.ub = 0
+                    try:
+                        forward_variable.lb = value
+                    except ValueError:
+                        forward_variable.ub = value
+                        self._upper_bound = value
+                        forward_variable.lb = value
+            elif self._lower_bound == 0 and self._upper_bound == 0:  # knockout
+                if value < 0:
+                    reverse_variable.ub = -1 * value
+                elif value >= 0:
+                    forward_variable.ub = value
+                    forward_variable.lb = value
+            elif self._lower_bound >= 0:  # forward irreversible
+                if value < 0:
+                    reverse_variable.ub = -1 * value
+                    forward_variable.lb = 0
+                else:
+                    try:
+                        forward_variable.lb = value
+                    except ValueError:
+                        forward_variable.ub = value
+                        self._upper_bound = value
+                        forward_variable.lb = value
+
+            elif self._upper_bound <= 0:  # reverse irreversible
+                if value > 0:
+                    reverse_variable.lb = 0
+                    reverse_variable.ub = 0
+                    forward_variable.ub = value
+                    self._upper_bound = value
+                    forward_variable.lb = value
+                else:
+                    try:
+                        reverse_variable.ub = -1 * value
+                    except ValueError:
+                        reverse_variable.lb = -1 * value
+                        self._upper_bound = value
+                        reverse_variable.ub = -1 * value
+            else:
+                raise ValueError('lower_bound issue')
+
+        self._lower_bound = value
+
+    @property
+    def upper_bound(self):
+        return self._upper_bound
+
+    @upper_bound.setter
+    def upper_bound(self, value):
+        model = self.model
+        if model is not None:
+
+            forward_variable, reverse_variable = self.forward_variable, self.reverse_variable
+            if self._lower_bound < 0 < self._upper_bound:  # reversible
+                if value > 0:
+                    forward_variable.ub = value
+                elif value <= 0:
+                    forward_variable.ub = 0
+                    try:
+                        reverse_variable.lb = -1 * value
+                    except ValueError:
+                        reverse_variable.ub = -1 * value
+                        self._lower_bound = value
+                        reverse_variable.lb = -1 * value
+            elif self._lower_bound == 0 and self._upper_bound == 0:  # knockout
+                if value > 0:
+                    forward_variable.ub = value
+                elif value <= 0:
+                    reverse_variable.ub = -1 * value
+            elif self._lower_bound >= 0:  # forward irreversible
+                if value > 0:
+                    try:
+                        forward_variable.ub = value
+                    except ValueError:
+                        forward_variable.lb = value
+                        self._lower_bound = value
+                        forward_variable.ub = value
+                else:
+                    forward_variable.lb = 0
+                    forward_variable.ub = 0
+                    reverse_variable.ub = -1 * value
+                    self._lower_bound = value
+                    reverse_variable.lb = -1 * value
+
+            elif self._upper_bound <= 0:  # reverse irreversible
+                if value < 0:
+                    try:
+                        reverse_variable.lb = -1 * value
+                    except ValueError:
+                        reverse_variable.ub = -1 * value
+                        self._lower_bound = value
+                        reverse_variable.lb = -1 * value
+                else:
+                    forward_variable.ub = value
+                    reverse_variable.lb = 0
+            else:
+                raise ValueError('upper_bound issue')
+
+        self._upper_bound = value
+
+    @property
+    def flux(self):
+        if self.model is not None:
+            return self.forward_variable.primal - self.reverse_variable.primal
+        else:
+            return None
+
+    @property
+    def reduced_cost(self):
+        if self.model is not None:
+            return self.forward_variable.dual - self.reverse_variable.dual
+        else:
+            return None
 
     # read-only
     @property
@@ -249,6 +480,13 @@ class Reaction(Object):
             raise Exception("Reaction %s not in a model" % self.id)
         # preserve the original attributes (but as copies)
         model = self._model
+
+        # from cameo ...
+        forward = self.forward_variable
+        reverse = self.reverse_variable
+        model.solver.remove([forward, reverse])
+        # ...
+
         new_metabolites = {copy(met): value
                            for met, value in iteritems(self._metabolites)}
         new_genes = {copy(i) for i in self._genes}
@@ -282,6 +520,12 @@ class Reaction(Object):
 
         """
         model = self._model
+        # from cameo ...
+        forward = self.forward_variable
+        reverse = self.reverse_variable
+        model.solver.remove([forward, reverse])
+        # ...
+
         if model is not None:
             self._model.reactions.remove(self)
         elif remove_orphans:
@@ -471,6 +715,11 @@ class Reaction(Object):
             the reaction is associated with (i.e. self.model)
 
         """
+        # from cameo ...
+        if combine:
+            old_coefficients = self.metabolites
+        # ...
+
         _id_to_metabolites = {str(x): x for x in self._metabolites}
         new_metabolites = []
         for metabolite, coefficient in iteritems(metabolites):
@@ -512,6 +761,27 @@ class Reaction(Object):
                 self._metabolites.pop(metabolite)
         if add_to_container_model and hasattr(self._model, 'add_metabolites'):
             self._model.add_metabolites(new_metabolites)
+
+        # from cameo ...
+        model = self.model
+        if model is not None:
+            for metabolite, coefficient in metabolites.items():
+
+                if isinstance(metabolite, str):  # support metabolites added as strings.
+                    metabolite = model.metabolites.get_by_id(metabolite)
+                if combine:
+                    try:
+                        old_coefficient = old_coefficients[metabolite]
+                    except KeyError:
+                        pass
+                    else:
+                        coefficient = coefficient + old_coefficient
+
+                model.solver.constraints[metabolite.id].set_linear_coefficients({
+                    self.forward_variable: coefficient,
+                    self.reverse_variable: -coefficient
+                })
+        # ...
 
     def subtract_metabolites(self, metabolites, combine=True):
         """This function will 'subtract' metabolites from a reaction, which
@@ -609,10 +879,43 @@ class Reaction(Object):
         self._genes.discard(cobra_gene)
         cobra_gene._reaction.discard(self)
 
-    def knock_out(self):
-        """Change the upper and lower bounds of the reaction to 0."""
-        self.lower_bound = 0
-        self.upper_bound = 0
+    # def knock_out(self):
+    #     """Change the upper and lower bounds of the reaction to 0."""
+    #     self.lower_bound = 0
+    #     self.upper_bound = 0
+
+    def change_bounds(self, lb=None, ub=None, time_machine=None):
+        """Changes one or both of the reaction bounds and allows the changes to be reversed with a TimeMachine"""
+        if time_machine is None:
+            if lb is not None:
+                self.lower_bound = lb
+            if ub is not None:
+                self.upper_bound = ub
+        else:
+            old_lb, old_ub = self.lower_bound, self.upper_bound
+            if lb is not None:
+                time_machine(do=partial(setattr, self, "lower_bound", lb),
+                             undo=partial(setattr, self, "lower_bound", old_lb))
+            if ub is not None:
+                time_machine(do=partial(setattr, self, "upper_bound", ub),
+                             undo=partial(setattr, self, "upper_bound", old_ub))
+
+    def knock_out(self, time_machine=None):
+        """Knockout reaction by setting its bounds to zero.
+
+        Parameters
+        ----------
+        time_machine = TimeMachine
+            A time TimeMachine instance can be provided to undo the knockout eventually.
+
+        Returns
+        -------
+        None
+        """
+        if time_machine is not None:
+            self.change_bounds(0, 0, time_machine=time_machine)
+        else:
+            self.change_bounds(0, 0)
 
     def build_reaction_from_string(self, reaction_str, verbose=True,
                                    fwd_arrow=None, rev_arrow=None,

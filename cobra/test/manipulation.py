@@ -234,6 +234,9 @@ class TestManipulation(TestCase):
         self.assertEqual(rxns.DM_h_c.annotation["SBO"], "SBO:0000628")
         self.assertEqual(rxns.EX_h_e.annotation["SBO"], "SBO:0000628")
 
+    # TODO: remove the following test eventually because bound checking has handled by optlang now.
+    import unittest
+    @unittest.skip('optlang handles bound checking now.')
     def test_validate_reaction_bounds(self):
         model = create_test_model("textbook")
         model.reactions[0].lower_bound = float("-inf")
