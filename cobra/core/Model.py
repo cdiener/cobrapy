@@ -49,6 +49,7 @@ class Model(Object):
             self.__setstate__(id_or_model.__dict__)
             if not hasattr(self, "name"):
                 self.name = None
+            self._solver = id_or_model.solver
         else:
             Object.__init__(self, id_or_model, name=name)
             self._trimmed = False
@@ -64,10 +65,10 @@ class Model(Object):
 
             # from cameo ...
 
-        # if not hasattr(self, '_solver'):  # backwards compatibility with older cobrapy pickles?
-        self._solver = solver_interface.Model()
-        self._solver.objective = solver_interface.Objective(S.Zero)
-        self._populate_solver(self.reactions, self.metabolites)
+            # if not hasattr(self, '_solver'):  # backwards compatibility with older cobrapy pickles?
+            self._solver = solver_interface.Model()
+            self._solver.objective = solver_interface.Objective(S.Zero)
+            self._populate_solver(self.reactions, self.metabolites)
         self._timestamp_last_optimization = None
         self.solution = LazySolution(self)
 
@@ -185,7 +186,7 @@ class Model(Object):
         #     new_reaction = reaction.__class__()
         #     for attr, value in iteritems(reaction.__dict__):
         #         if attr not in do_not_copy:
-        #             new_reaction.__dict__[attr] = value
+        #             new_reaction.__dict__[attr] = copy(value)
         #     new_reaction._model = new
         #     new.reactions.append(new_reaction)
         #     # update awareness
@@ -396,10 +397,10 @@ class Model(Object):
             # from cameo ...
             self._timestamp_last_optimization = time.time()
             if objective_sense is not None:
-                original_direction = self.objective.direction
-                self.objective.direction = {'minimize': 'min', 'maximize': 'max'}[objective_sense]
+                original_direction = self.solver.objective.direction
+                self.solver.objective.direction = {'minimize': 'min', 'maximize': 'max'}[objective_sense]
                 self.solver.optimize()
-                self.objective.direction = original_direction
+                self.solver.objective.direction = original_direction
             else:
                 self.solver.optimize()
             solution = solution_type(self)
@@ -482,14 +483,18 @@ class Model(Object):
 
     def change_objective(self, objectives):
         """Change the model objective"""
-        self.objective = objectives
+        self.solver.objective = objectives
 
     # from cameo ...
 
     @property
     def objective(self):
         """The model objective."""
-        return self.solver.objective
+        # TODO: the following should check if the model objective actually contains only reactions
+        return {reaction: reaction.objective_coefficient
+                for reaction in self.reactions
+                if reaction.objective_coefficient != 0}
+
 
     @objective.setter
     def objective(self, value):

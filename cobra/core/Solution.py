@@ -61,6 +61,8 @@ from collections import OrderedDict
 
 import time
 import datetime
+
+import cobra
 from pandas import DataFrame, Series
 
 from cobra.exceptions import UndefinedSolution
@@ -71,6 +73,15 @@ logger = logging.getLogger(__name__)
 
 
 class SolutionBase(object):
+
+    def __new__(cls, *args, **kwargs):
+        # this is a cobrapy compatibility hack
+        if len(args) == 1 and not isinstance(args[0], cobra.core.Model):
+            cobrapy_solution = super(SolutionBase, cls).__new__(LegacySolution)
+            cobrapy_solution.__init__(*args, **kwargs)
+            return cobrapy_solution
+        else:
+            return super(SolutionBase, cls).__new__(cls)
 
     def __init__(self, model):
         self.model = model
@@ -210,7 +221,7 @@ class Solution(SolutionBase):
         return fields
 
     def _repr_html_(self):
-        return "%s: %f" % (self.model.objective.expression, self.f)
+        return "%s: %f" % (self.model.solver.objective.expression, self.f)
 
 
 class LazySolution(SolutionBase):
@@ -321,3 +332,44 @@ class LazySolution(SolutionBase):
         fields.remove('x_dict')
         fields.remove('y_dict')
         return fields
+
+
+class LegacySolution(object):
+    """Stores the solution from optimizing a cobra.Model. This is
+    used to provide a single interface to results from different
+    solvers that store their values in different ways.
+
+    f: The objective value
+
+    solver: A string indicating which solver package was used.
+
+    x: List or Array of the values from the primal.
+
+    x_dict: A dictionary of reaction ids that maps to the primal values.
+
+    y: List or Array of the values from the dual.
+
+    y_dict: A dictionary of reaction ids that maps to the dual values.
+
+    """
+
+    def __init__(self, f, x=None,
+                 x_dict=None, y=None, y_dict=None,
+                 solver=None, the_time=0, status='NA'):
+        self.solver = solver
+        self.f = f
+        self.x = x
+        self.x_dict = x_dict
+        self.status = status
+        self.y = y
+        self.y_dict = y_dict
+
+    def dress_results(self, model):
+        """.. warning :: deprecated"""
+        from warnings import warn
+        warn("unnecessary to call this deprecated function")
+
+    def __repr__(self):
+        if self.f is None:
+            return "<Solution '%s' at 0x%x>" % (self.status, id(self))
+        return "<Solution %.2f at 0x%x>" % (self.f, id(self))

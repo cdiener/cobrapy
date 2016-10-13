@@ -156,14 +156,15 @@ class Reaction(Object):
 
     @property
     def objective_coefficient(self):
-        if self.model is not None and self.model.objective is not None:
-            coefficients_dict = self.model.objective.expression.as_coefficients_dict()
-            forw_coef = coefficients_dict.get(self.forward_variable, 0)
-            rev_coef = coefficients_dict.get(self.reverse_variable, 0)
-            if forw_coef == -rev_coef:
-                self._objective_coefficient = float(forw_coef)
-            else:
-                self._objective_coefficient = 0
+        # TODO: the following should be reactivated
+        # if self.model is not None and self.model.objective is not None:
+        #     coefficients_dict = self.model.objective.expression.as_coefficients_dict()
+        #     forw_coef = coefficients_dict.get(self.forward_variable, 0)
+        #     rev_coef = coefficients_dict.get(self.reverse_variable, 0)
+        #     if forw_coef == -rev_coef:
+        #         self._objective_coefficient = float(forw_coef)
+        #     else:
+        #         self._objective_coefficient = 0
         return self._objective_coefficient
 
     @objective_coefficient.setter
@@ -171,7 +172,7 @@ class Reaction(Object):
         model = self.model
         if model is not None:
             coef_difference = value - self.objective_coefficient
-            model.objective += coef_difference * self.flux_expression
+            model.solver.objective += coef_difference * self.flux_expression
         self._objective_coefficient = value
 
 
