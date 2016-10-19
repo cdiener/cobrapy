@@ -19,6 +19,7 @@ def check_mass_balance(model):
     return unbalanced
 
 
+# no longer strictly necessary, done by optlang solver interfaces
 def check_reaction_bounds(model):
     errors = []
     for reaction in model.reactions:

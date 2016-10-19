@@ -690,7 +690,8 @@ class TestCobraModel(CobraTestCase):
         self.model.objective = self.model.reactions.index(atpm)
         self.assertEqual(self.model.objective, {atpm: 1.})
         # test by setting list of indexes
-        self.model.objective = map(self.model.reactions.index, [atpm, biomass])
+        self.model.objective = [self.model.reactions.index(reaction) for
+                                reaction in [atpm, biomass]]
         self.assertEqual(self.model.objective, {atpm: 1., biomass: 1.})
 
 

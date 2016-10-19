@@ -18,7 +18,7 @@ import types
 import optlang
 from sympy.core.singleton import S
 from pandas import DataFrame
-
+from functools import partial
 from cobra.util import AutoVivification
 
 from cobra import exceptions, config
@@ -219,7 +219,8 @@ class Model(Object):
         # from cameo ...
         for met in metabolite_list:
             if met.id not in self.solver.constraints:
-                constraint = self.solver.interface.Constraint(S.Zero, name=met.id, lb=0, ub=0)
+                constraint = self.solver.interface.Constraint(
+                    S.Zero, name=met.id, lb=0, ub=0)
                 self.solver.add(constraint)
 
     def add_reaction(self, reaction):
@@ -481,11 +482,17 @@ class Model(Object):
             self.solution = Solution(None)
         return
 
-    def change_objective(self, objectives):
-        """Change the model objective"""
-        self.solver.objective = objectives
-
-    # from cameo ...
+    def change_objective(self, value, time_machine=None):
+        """
+        Changes the objective of the model to the given value. Allows
+        passing a time machine to revert the change later
+        """
+        if time_machine is None:
+            self.objective = value
+        else:
+            time_machine(do=partial(setattr, self, "objective", value),
+                         undo=partial(setattr, self, "objective",
+                                      self.objective))
 
     @property
     def objective(self):
@@ -495,27 +502,51 @@ class Model(Object):
                 for reaction in self.reactions
                 if reaction.objective_coefficient != 0}
 
-
     @objective.setter
     def objective(self, value):
+        # are all these ways of setting the objective necessary?
+        for reaction in self.reactions: # cobra does this / cameo doesn't
+            reaction.objective_coefficient = 0.
         if isinstance(value, six.string_types):
             try:
                 value = self.reactions.get_by_id(value)
             except KeyError:
-                raise ValueError("No reaction with the id %s in the model" % value)
+                raise ValueError("No reaction with the id %s in the model"
+                                 % value)
+        if isinstance(value, int):
+            value = self.reactions[value]
         if isinstance(value, Reaction):
             if value.model is not self:
                 raise ValueError("%r does not belong to the model" % value)
-            self.solver.objective = self.solver.interface.Objective(value.flux_expression, sloppy=True)
+            value.objective_coefficient = 1.
+            self.solver.objective = self.solver.interface.Objective(
+                value.flux_expression, sloppy=True)
         elif isinstance(value, self.solver.interface.Objective):
             self.solver.objective = value
-        # TODO: maybe the following should be allowed
+        elif isinstance(value, sympy.Basic):
+            self.solver.objective = self.solver.interface.Objective(
+                value, sloppy=False)
+        elif isinstance(value, (dict, list)):
+            for item in value:
+                if isinstance(item, int):
+                    reaction = self.reactions[item]
+                elif isinstance(item, six.string_types):
+                    reaction = self.reactions.get_by_id(item)
+                elif hasattr(item, 'id'):
+                    reaction = self.reactions.get_by_id(item.id)
+                else:
+                    raise ValueError('item in iterable cannot be %s' %
+                                     type(item))
+                if isinstance(value, list):
+                    reaction.objective_coefficient = 1
+                if isinstance(value, dict):
+                    reaction.objective_coefficient = value[item]
+        # TODO(old): maybe the following should be allowed
         # elif isinstance(value, optlang.interface.Objective):
         # self.solver.objective = self.solver.interface.Objective.clone(value)
-        elif isinstance(value, sympy.Basic):
-            self.solver.objective = self.solver.interface.Objective(value, sloppy=False)
         else:
-            raise TypeError('%r is not a valid objective for %r.' % (value, self.solver))
+            raise TypeError('%r is not a valid objective for %r.' %
+                            (value, self.solver))
 
     def summary(self, **kwargs):
         """Print a summary of the input and output fluxes of the model. This
