@@ -268,6 +268,7 @@ class Model(Object):
 
         # Add reactions. Also take care of genes and metabolites in the loop
         for reaction in reaction_list:
+            reaction._reset_var_cache()
             reaction._model = self  # the reaction now points to the model
             # keys() is necessary because the dict will be modified during
             # the loop
