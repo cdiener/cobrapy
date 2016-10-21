@@ -40,6 +40,10 @@ class Model(Object):
         for y in ['reactions', 'genes', 'metabolites']:
             for x in getattr(self, y):
                 x._model = self
+        # only repairs objectives when they are reactions..
+        for reaction in getattr(self, 'reactions'):
+            reaction.objective_coefficient = \
+            reaction._objective_coefficient
         if not hasattr(self, "name"):
             self.name = None
 
