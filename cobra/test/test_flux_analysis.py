@@ -109,6 +109,9 @@ class TestCobraFluxAnalysis:
             assert statuses[gene] == 'optimal'
             assert abs(rates[gene] - expected_value) < 0.01
 
+    def test_single_gene_deletion_moma_benchmark(self, model, benchmark):
+        benchmark(self.test_single_gene_deletion_moma, model)
+
     def test_single_gene_deletion_moma(self, model):
         try:
             get_solver_name(qp=True)
@@ -125,6 +128,9 @@ class TestCobraFluxAnalysis:
         for gene, expected_value in iteritems(growth_dict):
             assert statuses[gene] == 'optimal'
             assert abs(rates[gene] - expected_value) < 0.01
+
+    def test_single_gene_deletion_benchmark(self, model, benchmark):
+        benchmark(self.test_single_reaction_deletion, model)
 
     def test_single_reaction_deletion(self, model):
         expected_results = {'FBA': 0.70404, 'FBP': 0.87392, 'CS': 0,
