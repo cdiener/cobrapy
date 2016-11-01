@@ -35,7 +35,6 @@ from numpy.linalg import svd
 from numpy.random import RandomState
 from six.moves import range
 
-
 logger = logging.getLogger(__name__)
 
 
