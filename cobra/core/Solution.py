@@ -1,60 +1,3 @@
-# class Solution(object):
-#     """Stores the solution from optimizing a cobra.Model. This is
-#     used to provide a single interface to results from different
-#     solvers that store their values in different ways.
-#
-#     f: The objective value
-#
-#     solver: A string indicating which solver package was used.
-#
-#     x: List or Array of the values from the primal.
-#
-#     x_dict: A dictionary of reaction ids that maps to the primal values.
-#
-#     y: List or Array of the values from the dual.
-#
-#     y_dict: A dictionary of reaction ids that maps to the dual values.
-#
-#     """
-#
-#     def __init__(self, f, x=None,
-#                  x_dict=None, y=None, y_dict=None,
-#                  solver=None, the_time=0, status='NA'):
-#         self.solver = solver
-#         self.f = f
-#         self.x = x
-#         self.x_dict = x_dict
-#         self.status = status
-#         self.y = y
-#         self.y_dict = y_dict
-#
-#     def dress_results(self, model):
-#         """.. warning :: deprecated"""
-#         from warnings import warn
-#         warn("unnecessary to call this deprecated function")
-#
-#     def __repr__(self):
-#         if self.f is None:
-#             return "<Solution '%s' at 0x%x>" % (self.status, id(self))
-#         return "<Solution %.2f at 0x%x>" % (self.f, id(self))
-
-# from cameo ...
-
-# -*- coding: utf-8 -*-
-# Copyright 2013 Novo Nordisk Foundation Center for Biosustainability, DTU.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 from __future__ import absolute_import, print_function
 
 from collections import OrderedDict
@@ -73,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class SolutionBase(object):
-
     def __new__(cls, *args, **kwargs):
         # this is a cobrapy compatibility hack
         if len(args) == 1 and not isinstance(args[0], cobra.core.Model):
@@ -92,7 +34,8 @@ class SolutionBase(object):
 
     @property
     def data_frame(self):
-        return DataFrame({'fluxes': Series(self.fluxes), 'reduced_costs': Series(self.reduced_costs)})
+        return DataFrame({'fluxes': Series(self.fluxes),
+                          'reduced_costs': Series(self.reduced_costs)})
 
     def __str__(self):
         """A pandas DataFrame representation of the solution.
@@ -188,7 +131,8 @@ class Solution(SolutionBase):
 
     Notes
     -----
-    See also documentation for cobra.core.Solution.Solution for an extensive list of inherited attributes.
+    See also documentation for cobra.core.Solution.Solution for an extensive
+    list of inherited attributes.
     """
 
     def __init__(self, model, *args, **kwargs):
@@ -206,7 +150,8 @@ class Solution(SolutionBase):
             self.fluxes[reaction.id] = reaction.flux
             self.reduced_costs[reaction.id] = reaction.reduced_cost
         for metabolite in model.metabolites:
-            self.shadow_prices[metabolite.id] = self.model.solver.constraints[metabolite.id].dual
+            self.shadow_prices[metabolite.id] = self.model.solver.constraints[
+                metabolite.id].dual
         self.status = model.solver.status
         self._reaction_ids = [r.id for r in self.model.reactions]
         self._metabolite_ids = [m.id for m in self.model.metabolites]
@@ -225,7 +170,8 @@ class Solution(SolutionBase):
 
 
 class LazySolution(SolutionBase):
-    """This class implements a lazy evaluating version of the cobrapy Solution class.
+    """This class implements a lazy evaluating version of the cobrapy
+    Solution class.
 
     Attributes
     ----------
@@ -237,7 +183,9 @@ class LazySolution(SolutionBase):
 
     Notes
     -----
-    See also documentation for cobra.core.Solution.Solution for an extensive list of inherited attributes.
+    See also documentation for cobra.core.Solution.Solution for an extensive
+    list of inherited attributes.
+
     """
 
     def __init__(self, model, *args, **kwargs):
@@ -254,7 +202,8 @@ class LazySolution(SolutionBase):
         self._f = None
 
     def _check_freshness(self):
-        """Raises an exceptions if the solution might have become invalid due to re-optimization of the attached model.
+        """Raises an exceptions if the solution might have become invalid
+        due to re-optimization of the attached model.
 
         Raises
         ------
@@ -267,9 +216,11 @@ class LazySolution(SolutionBase):
                     "%Y-%m-%d %H:%M:%S:%f")
 
             raise UndefinedSolution(
-                'The solution (captured around %s) has become invalid as the model has been re-optimized recently (%s).' % (
+                'The solution (captured around %s) has become invalid as the '
+                'model has been re-optimized recently (%s).' % (
                     timestamp_formatter(self._time_stamp),
-                    timestamp_formatter(self.model._timestamp_last_optimization))
+                    timestamp_formatter(
+                        self.model._timestamp_last_optimization))
             )
 
     @property
@@ -310,7 +261,8 @@ class LazySolution(SolutionBase):
         self._check_freshness()
         duals = OrderedDict()
         for metabolite in self.model.metabolites:
-            duals[metabolite.id] = self.model.solver.constraints[metabolite.id].dual
+            duals[metabolite.id] = self.model.solver.constraints[
+                metabolite.id].dual
         return duals
 
     def get_primal_by_id(self, reaction_id):

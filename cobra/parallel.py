@@ -91,7 +91,6 @@ try:
     import redis
     import six.moves.cPickle as pickle
 
-
     class RedisQueue(object):
         """
         Queue with Redis Backend
@@ -104,8 +103,10 @@ try:
         default_port = "6379"
         default_db = 0
 
-        def __init__(self, name, maxsize=0, namespace='queue', **connection_args):
-            """The default connection parameters are: host='localhost', port=6379, db=0
+        def __init__(self, name, maxsize=0, namespace='queue',
+                     **connection_args):
+            """The default connection parameters are: host='localhost',
+            port=6379, db=0
 
             Parameters
             ----------
@@ -191,10 +192,11 @@ try:
             Parameters
             ----------
             block: bool, default is True
-                If true, the queue is blocked until it an object is retrieved reaches the timeout.
+                If true, the queue is blocked until it an object is
+                retrieved reaches the timeout.
             timeout: long
-                The timeout (in seconds) that the method should wait for the queue to return an item. If block is False,
-                time wil ignored.
+                The timeout (in seconds) that the method should wait for the
+                queue to return an item. If block is False, time wil ignored.
 
             Returns
             -------
@@ -257,7 +259,6 @@ class SequentialView(object):
 if __name__ == '__main__':
     from time import sleep
 
-
     class FunctionObject(object):
         """docstring for FunctionObject"""
 
@@ -267,7 +268,6 @@ if __name__ == '__main__':
         def __call__(self, arg):
             sleep(.1)
             return arg ** 2
-
 
     view = MultiprocessingView(processes=4)
     print(view.map(FunctionObject(), list(range(0, 100))))

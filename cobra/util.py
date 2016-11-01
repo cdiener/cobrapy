@@ -37,7 +37,6 @@ from six.moves import range
 import warnings
 from decorator import decorator
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -52,13 +51,16 @@ class frozendict(dict):
         raise AttributeError("'frozendict' object has no attribute 'pop")
 
     def __setitem__(self, key, value):
-        raise AttributeError("'frozendict' object has no attribute '__setitem__")
+        raise AttributeError(
+            "'frozendict' object has no attribute '__setitem__")
 
     def setdefault(self, k, d=None):
-        raise AttributeError("'frozendict' object has no attribute 'setdefault")
+        raise AttributeError(
+            "'frozendict' object has no attribute 'setdefault")
 
     def __delitem__(self, key):
-        raise AttributeError("'frozendict' object has no attribute '__delitem__")
+        raise AttributeError(
+            "'frozendict' object has no attribute '__delitem__")
 
     def __hash__(self):
         return hash(tuple(sorted(self.items())))
@@ -71,11 +73,11 @@ class ProblemCache(object):
     """
     Variable and constraint cache for models.
 
-    To be used in complex methods that require many extra variables when one must run
-    multiple simulations.
+    To be used in complex methods that require many extra variables when one
+    must run multiple simulations.
 
-    It allows rollback to the previous state in case one iteration fails to build the problem or
-    generates an invalid state.
+    It allows rollback to the previous state in case one iteration fails to
+    build the problem or generates an invalid state.
 
     """
 
@@ -91,7 +93,8 @@ class ProblemCache(object):
 
     def begin_transaction(self):
         """
-        Creates a time point. If rollback is called, the variables and constrains will be reverted to this point.
+        Creates a time point. If rollback is called, the variables and
+        constrains will be reverted to this point.
         """
         self.transaction_id = uuid1()
         self.time_machine(do=int, undo=int, bookmark=self.transaction_id)
@@ -101,7 +104,8 @@ class ProblemCache(object):
         return self._model
 
     def _append_constraint(self, constraint_id, create, *args, **kwargs):
-        self.constraints[constraint_id] = create(self.model, constraint_id, *args, **kwargs)
+        self.constraints[constraint_id] = create(self.model, constraint_id,
+                                                 *args, **kwargs)
         self._model.solver._add_constraint(self.constraints[constraint_id])
 
     def _remove_constraint(self, constraint_id):
@@ -109,7 +113,8 @@ class ProblemCache(object):
         self.model.solver._remove_constraint(constraint)
 
     def _append_variable(self, variable_id, create, *args, **kwargs):
-        self.variables[variable_id] = create(self.model, variable_id, *args, **kwargs)
+        self.variables[variable_id] = create(self.model, variable_id, *args,
+                                             **kwargs)
         self.model.solver._add_variable(self.variables[variable_id])
 
     def _remove_variable(self, variable_id):
@@ -117,11 +122,14 @@ class ProblemCache(object):
         self.model.solver._remove_variable(variable)
 
     def _rebuild_variable(self, variable):
-        (type, lb, ub, name) = variable.type, variable.lb, variable.ub, variable.name
+        (type, lb, ub,
+         name) = variable.type, variable.lb, variable.ub, variable.name
 
         def rebuild():
             self.model.solver._remove_variable(variable)
-            new_variable = self.model.solver.interface.Variable(name, lb=lb, ub=ub, type=type)
+            new_variable = self.model.solver.interface.Variable(name, lb=lb,
+                                                                ub=ub,
+                                                                type=type)
             self.variables[name] = variable
             self.model.solver._add_variable(new_variable, sloppy=True)
 
@@ -148,10 +156,12 @@ class ProblemCache(object):
         """
         if constraint_id in self.constraints:
             if update is not None:
-                update(self.model, self.constraints[constraint_id], *args, **kwargs)
+                update(self.model, self.constraints[constraint_id], *args,
+                       **kwargs)
         else:
             self.time_machine(
-                do=partial(self._append_constraint, constraint_id, create, *args, **kwargs),
+                do=partial(self._append_constraint, constraint_id, create,
+                           *args, **kwargs),
                 undo=partial(self._remove_constraint, constraint_id)
             )
 
@@ -177,11 +187,13 @@ class ProblemCache(object):
         if variable_id in self.variables:
             if update is not None:
                 self.time_machine(
-                    do=partial(update, self.model, self.variables[variable_id], *args, **kwargs),
+                    do=partial(update, self.model, self.variables[variable_id],
+                               *args, **kwargs),
                     undo=self._rebuild_variable(self.variables[variable_id]))
         else:
             self.time_machine(
-                do=partial(self._append_variable, variable_id, create, *args, **kwargs),
+                do=partial(self._append_variable, variable_id, create, *args,
+                           **kwargs),
                 undo=partial(self._remove_variable, variable_id)
             )
 
@@ -190,14 +202,17 @@ class ProblemCache(object):
             self.objective = create(self.model, *args)
             self.time_machine(
                 do=partial(setattr, self.model, 'objective', self.objective),
-                undo=partial(setattr, self.model, 'objective', self.model.objective)
+                undo=partial(setattr, self.model, 'objective',
+                             self.model.objective)
             )
         else:
             if update:
                 self.objective = update(self.model, *args)
                 self.time_machine(
-                    do=partial(setattr, self.model, 'objective', self.objective),
-                    undo=partial(setattr, self.model, 'objective', self.model.objective)
+                    do=partial(setattr, self.model, 'objective',
+                               self.objective),
+                    undo=partial(setattr, self.model, 'objective',
+                                 self.model.objective)
                 )
 
     def reset(self):
@@ -218,7 +233,8 @@ class ProblemCache(object):
         Returns to the previous transaction start point.
         """
         if self.transaction_id is None:
-            raise RuntimeError("Start transaction must be called before rollback")
+            raise RuntimeError(
+                "Start transaction must be called before rollback")
         self.time_machine.undo(self.transaction_id)
         self.transaction_id = None
 
@@ -271,7 +287,8 @@ class Singleton(object):
 
 
 class AutoVivification(dict):
-    """Implementation of perl's autovivification feature. Checkout http://stackoverflow.com/a/652284/280182"""
+    """Implementation of perl's autovivification feature. Checkout
+    http://stackoverflow.com/a/652284/280182 """
 
     def __getitem__(self, item):
         try:
@@ -297,7 +314,8 @@ class TimeMachine(object):
             entry_id = bookmark
         # make sure that entry is added to the end of history
         self.history.pop(entry_id, None)
-        self.history[entry_id] = {'unix_epoch': current_time, 'undo': undo, 'redo': do}
+        self.history[entry_id] = {'unix_epoch': current_time, 'undo': undo,
+                                  'redo': do}
         return entry_id, output
 
     def __str__(self):
@@ -316,18 +334,25 @@ class TimeMachine(object):
     def _history_item_to_str(item):
         info = ''
         uuid, entry = item
-        info += datetime.fromtimestamp(entry['unix_epoch']).strftime('%Y-%m-%d %H:%M:%S') + '\n'
+        info += datetime.fromtimestamp(entry['unix_epoch']).strftime(
+            '%Y-%m-%d %H:%M:%S') + '\n'
         undo_entry = entry['undo']
         try:
-            elements = undo_entry.func, undo_entry.args, undo_entry.keywords or {}  # partial  (if .keywords is None print {} instead)
-            info += 'undo: ' + ' '.join([str(elem) for elem in elements]) + '\n'
+            # partial  (if .keywords is None print {} instead)
+            elements = undo_entry.func, undo_entry.args, \
+                       undo_entry.keywords or {}
+            info += 'undo: ' + ' '.join(
+                [str(elem) for elem in elements]) + '\n'
         except AttributeError:  # normal python function
             info += 'undo: ' + undo_entry.__name__ + '\n'
 
         redo_entry = entry['redo']
         try:
-            elements = redo_entry.func, redo_entry.args, redo_entry.keywords or {}  # partial
-            info += 'redo: ' + ' '.join([str(elem) for elem in elements]) + '\n'
+            # partial
+            elements = redo_entry.func, redo_entry.args, \
+                       redo_entry.keywords or {}
+            info += 'redo: ' + ' '.join(
+                [str(elem) for elem in elements]) + '\n'
         except AttributeError:
             info += 'redo: ' + redo_entry.__name__ + '\n'
         return info
@@ -390,7 +415,9 @@ class IntelliContainer(object):
 
 def inheritdocstring(name, bases, attrs):
     """Use as metaclass to inherit class and method docstrings from parent.
-    Adapted from http://stackoverflow.com/questions/13937500/inherit-a-parent-class-docstring-as-doc-attribute"""
+
+    Adapted from http://stackoverflow.com/questions/13937500/inherit-a
+    -parent-class-docstring-as-doc-attribute """
     temp = type('temporaryclass', bases, {})
     if '__doc__' not in attrs or not attrs["__doc__"]:
         # create a temporary 'parent' to (greatly) simplify the MRO search
@@ -415,7 +442,8 @@ def inheritdocstring(name, bases, attrs):
 def partition_(lst, n):
     """Partition a list into n bite size chunks."""
     division = len(lst) / float(n)
-    return [lst[int(round(division * i)): int(round(division * (i + 1)))] for i in range(n)]
+    return [lst[int(round(division * i)): int(round(division * (i + 1)))] for i
+            in range(n)]
 
 
 def partition(ite, n):
@@ -427,7 +455,9 @@ def partition(ite, n):
         length = len(ite)
     division = length / float(n)
     iterator = iter(ite)
-    return [list(islice(iterator, 0, round(division * (i + 1)) - round(division * i))) for i in range(n)]
+    return [list(
+        islice(iterator, 0, round(division * (i + 1)) - round(division * i)))
+            for i in range(n)]
 
 
 def flatten(l):
@@ -512,7 +542,8 @@ def get_system_info():
 
 def in_ipnb():
     """
-    Check if it is running inside an IPython Notebook (updated for new notebooks)
+    Check if it is running inside an IPython Notebook (updated for new
+    notebooks)
     """
     return pandas.core.common.in_ipython_frontend()
 
@@ -531,7 +562,8 @@ def str_to_valid_variable_name(s):
 
 def zip_repeat(long_iter, short_iter):
     """
-    Zips two iterable objects but repeats the second one if it is shorter than the first one.
+    Zips two iterable objects but repeats the second one if it is shorter
+    than the first one.
 
     Parameters
     ----------

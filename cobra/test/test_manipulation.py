@@ -2,6 +2,7 @@ from cobra.core import Metabolite, Model, Reaction
 from cobra.manipulation import *
 import pytest
 
+
 class TestManipulation:
     """Test functions in cobra.manipulation"""
 
@@ -213,7 +214,8 @@ class TestManipulation:
         assert rxns.DM_h_c.annotation["SBO"] == "SBO:0000628"
         assert rxns.EX_h_e.annotation["SBO"] == "SBO:0000628"
 
-    # TODO: remove the following test eventually because bound checking has handled by optlang now.
+    # TODO: remove the following test eventually because bound checking has
+    # handled by optlang now.
     @pytest.mark.skip(reason='optlang handles bound checking now')
     def test_validate_reaction_bounds(self, model):
         model.reactions[0].lower_bound = float("-inf")

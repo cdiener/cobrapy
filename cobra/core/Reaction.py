@@ -42,6 +42,7 @@ def _is_positive(n):
     except:
         return True
 
+
 # precompiled regular expressions
 # Matches and/or in a gene reaction rule
 and_or_search = re.compile(r'\(| and| or|\+|\)', re.IGNORECASE)
@@ -97,7 +98,6 @@ class Reaction(Object):
         self._reverse_variable = None
         self._forward_variable = None
 
-
     # from cameo ...
 
     @property
@@ -106,17 +106,19 @@ class Reaction(Object):
 
     def _get_reverse_id(self):
         """Generate the id of reverse_variable from the reaction's id."""
-        return '_'.join((self.id, 'reverse', hashlib.md5(self.id.encode('utf-8')).hexdigest()[0:5]))
+        return '_'.join((self.id, 'reverse',
+                         hashlib.md5(
+                             self.id.encode('utf-8')).hexdigest()[0:5]))
 
     def _get_forward_id(self):
         """Generate the id of forward_variable from the reaction's id."""
         return self.id
-        # return '_'.join((self.id, 'forward', hashlib.md5(self.id.encode('utf-8')).hexdigest()[0:5]))
 
     @property
     def flux_expression(self):
-        """An optlang variable representing the forward flux (if associated with model), otherwise None.
-        Representing the net flux if model.reversible_encoding == 'unsplit'"""
+        """An optlang variable representing the forward flux (if associated
+        with model), otherwise None. Representing the net flux if
+        model.reversible_encoding == 'unsplit' """
         model = self.model
         if model is not None:
             return 1. * self.forward_variable - 1. * self.reverse_variable
@@ -125,11 +127,13 @@ class Reaction(Object):
 
     @property
     def forward_variable(self):
-        """An optlang variable representing the forward flux (if associated with model), otherwise None."""
+        """An optlang variable representing the forward flux (if associated
+        with model), otherwise None. """
         model = self.model
         if model is not None:
             if self._forward_variable is None:
-                self._forward_variable = model.solver.variables[self._get_forward_id()]
+                self._forward_variable = model.solver.variables[
+                    self._get_forward_id()]
             assert self._forward_variable.problem is self.model.solver
 
             return self._forward_variable
@@ -139,11 +143,13 @@ class Reaction(Object):
 
     @property
     def reverse_variable(self):
-        """An optlang variable representing the reverse flux (if associated with model), otherwise None."""
+        """An optlang variable representing the reverse flux (if associated
+        with model), otherwise None. """
         model = self.model
         if model is not None:
             if self._reverse_variable is None:
-                self._reverse_variable = model.solver.variables[self._get_reverse_id()]
+                self._reverse_variable = model.solver.variables[
+                    self._get_reverse_id()]
             assert self._reverse_variable.problem is self.model.solver
             return self._reverse_variable
             # return model.solver.variables[self._get_reverse_id()]
@@ -175,7 +181,6 @@ class Reaction(Object):
             model.solver.objective += coef_difference * self.flux_expression
         self._objective_coefficient = value
 
-
     def __copy__(self):
         cop = copy(super(Reaction, self))
         cop._reset_var_cache()
@@ -196,7 +201,8 @@ class Reaction(Object):
 
         if model is not None:
 
-            forward_variable, reverse_variable = self.forward_variable, self.reverse_variable
+            forward_variable, reverse_variable = \
+                self.forward_variable, self.reverse_variable
             if self._lower_bound < 0 < self._upper_bound:  # reversible
                 if value < 0:
                     reverse_variable.ub = -1 * value
@@ -254,7 +260,8 @@ class Reaction(Object):
         model = self.model
         if model is not None:
 
-            forward_variable, reverse_variable = self.forward_variable, self.reverse_variable
+            forward_variable, reverse_variable = \
+                self.forward_variable, self.reverse_variable
             if self._lower_bound < 0 < self._upper_bound:  # reversible
                 if value > 0:
                     forward_variable.ub = value
@@ -402,9 +409,10 @@ class Reaction(Object):
         except Exception as e:
             if self._model is None:
                 raise Exception("not part of a model")
-            if not hasattr(self._model, "solution") or \
-                    self._model.solution is None or \
-                    self._model.solution.status == "NA":
+            not_solved = (not hasattr(self._model, "solution") or
+                          self._model.solution is None or
+                          self._model.solution.status == "NA")
+            if not_solved:
                 raise Exception("model has not been solved")
             if self._model.solution.status != "optimal":
                 raise Exception("model solution was not optimal")
@@ -635,7 +643,8 @@ class Reaction(Object):
         gpr2 = other.gene_reaction_rule.strip()
         if gpr1 != '' and gpr2 != '':
             self.gene_reaction_rule = "(%s) and (%s)" % \
-                (self.gene_reaction_rule, other.gene_reaction_rule)
+                                      (self.gene_reaction_rule,
+                                       other.gene_reaction_rule)
         elif gpr1 != '' and gpr2 == '':
             self.gene_reaction_rule = gpr1
         elif gpr1 == '' and gpr2 != '':
@@ -768,7 +777,8 @@ class Reaction(Object):
         if model is not None:
             for metabolite, coefficient in metabolites.items():
 
-                if isinstance(metabolite, str):  # support metabolites added as strings.
+                if isinstance(metabolite,
+                              str):  # support metabolites added as strings.
                     metabolite = model.metabolites.get_by_id(metabolite)
                 if combine:
                     try:
@@ -778,11 +788,11 @@ class Reaction(Object):
                     else:
                         coefficient = coefficient + old_coefficient
 
-                model.solver.constraints[metabolite.id].set_linear_coefficients({
-                    self.forward_variable: coefficient,
-                    self.reverse_variable: -coefficient
-                })
-        # ...
+                model.solver.constraints[
+                    metabolite.id].set_linear_coefficients(
+                    {self.forward_variable: coefficient,
+                     self.reverse_variable: -coefficient
+                     })
 
     def subtract_metabolites(self, metabolites, combine=True):
         """This function will 'subtract' metabolites from a reaction, which
@@ -814,8 +824,10 @@ class Reaction(Object):
 
     def build_reaction_string(self, use_metabolite_names=False):
         """Generate a human readable reaction string"""
+
         def format(number):
             return "" if number == 1 else str(number).rstrip(".") + " "
+
         id_type = 'id'
         if use_metabolite_names:
             id_type = 'name'
@@ -886,7 +898,8 @@ class Reaction(Object):
     #     self.upper_bound = 0
 
     def change_bounds(self, lb=None, ub=None, time_machine=None):
-        """Changes one or both of the reaction bounds and allows the changes to be reversed with a TimeMachine"""
+        """Changes one or both of the reaction bounds and allows the changes
+        to be reversed with a TimeMachine """
         if time_machine is None:
             if lb is not None:
                 self.lower_bound = lb
@@ -896,10 +909,12 @@ class Reaction(Object):
             old_lb, old_ub = self.lower_bound, self.upper_bound
             if lb is not None:
                 time_machine(do=partial(setattr, self, "lower_bound", lb),
-                             undo=partial(setattr, self, "lower_bound", old_lb))
+                             undo=partial(setattr, self, "lower_bound",
+                                          old_lb))
             if ub is not None:
                 time_machine(do=partial(setattr, self, "upper_bound", ub),
-                             undo=partial(setattr, self, "upper_bound", old_ub))
+                             undo=partial(setattr, self, "upper_bound",
+                                          old_ub))
 
     def knock_out(self, time_machine=None):
         """Knockout reaction by setting its bounds to zero.
@@ -907,7 +922,8 @@ class Reaction(Object):
         Parameters
         ----------
         time_machine = TimeMachine
-            A time TimeMachine instance can be provided to undo the knockout eventually.
+            A time TimeMachine instance can be provided to undo the knockout
+            eventually.
 
         Returns
         -------
