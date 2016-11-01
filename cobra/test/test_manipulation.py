@@ -1,10 +1,11 @@
 from cobra.core import Metabolite, Model, Reaction
 from cobra.manipulation import *
-
+import pytest
 
 class TestManipulation:
     """Test functions in cobra.manipulation"""
 
+    @pytest.mark.xfail(reason="defunct with optlang model")
     def test_canonical_form(self, model):
         # add G constraint to test
         g_constr = Metabolite("SUCCt2_2__test_G_constraint")
@@ -16,6 +17,7 @@ class TestManipulation:
         model = canonical_form(model)
         assert abs(model.optimize("maximize").f - 0.855) < 10 ** -3
 
+    @pytest.mark.xfail(reason="defunct with optlang model")
     def test_canonical_form_minimize(self, model):
         # make a minimization problem
         model.reactions.get_by_id("Biomass_Ecoli_core").lower_bound = 0.5
