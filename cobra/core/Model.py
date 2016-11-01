@@ -18,15 +18,7 @@ import types
 import optlang
 from sympy.core.singleton import S
 from pandas import DataFrame
-<<<<<<< 55621819ee70532fb96dfb0e6d0ae78a4f112fd6
-<<<<<<< variant A
 from functools import partial
->>>>>>> variant B
-
-======= end
-=======
-from functools import partial
->>>>>>> fix objective setter to cobra style
 from cobra.util import AutoVivification
 
 from cobra import exceptions, config
@@ -543,8 +535,6 @@ class Model(Object):
             time_machine(do=partial(setattr, self, "objective", value),
                          undo=partial(setattr, self, "objective",
                                       self.objective))
-
-    # from cameo ...
 
     @property
     def objective(self):

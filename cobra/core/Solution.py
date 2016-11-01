@@ -291,146 +291,18 @@ class LegacySolution(object):
     used to provide a single interface to results from different
     solvers that store their values in different ways.
 
-# from cameo ...
+    f: The objective value
 
-# -*- coding: utf-8 -*-
-# Copyright 2013 Novo Nordisk Foundation Center for Biosustainability, DTU.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+    solver: A string indicating which solver package was used.
 
-from __future__ import absolute_import, print_function
+    x: List or Array of the values from the primal.
 
-from collections import OrderedDict
+    x_dict: A dictionary of reaction ids that maps to the primal values.
 
-import time
-import datetime
-from pandas import DataFrame, Series
+    y: List or Array of the values from the dual.
 
-from cobra.exceptions import UndefinedSolution
+    y_dict: A dictionary of reaction ids that maps to the dual values.
 
-import logging
-
-logger = logging.getLogger(__name__)
-
-
-class SolutionBase(object):
-
-    def __init__(self, model):
-        self.model = model
-        self._x = None
-        self._y = None
-        self._x_dict = None
-        self._y_dict = None
-
-    @property
-    def data_frame(self):
-        return DataFrame({'fluxes': Series(self.fluxes), 'reduced_costs': Series(self.reduced_costs)})
-
-    def __str__(self):
-        """A pandas DataFrame representation of the solution.
-
-        Returns
-        -------
-        pandas.DataFrame
-        """
-        return str(self.data_frame)
-
-    def _repr_html_(self):
-        return self.data_frame._repr_html_()
-
-    # def as_cobrapy_solution(self):
-    #     """Convert into a cobrapy Solution.
-    #
-    #     Returns
-    #     -------
-    #     cobra.core.Solution.Solution
-    #     """
-    #     return Solution(self.f, x=self.x,
-    #                     x_dict=self.x_dict, y=self.y, y_dict=self.y_dict,
-    #                     the_solver=None, the_time=0, status=self.status)
-
-    def get_primal_by_id(self, reaction_id):
-        """Return a flux/primal value for a reaction.
-
-        Parameters
-        ----------
-        reaction_id : str
-            A reaction ID.
-        """
-        return self.x_dict[reaction_id]
-
-    @property
-    def x_dict(self):
-        if self._x_dict is None:
-            return self.fluxes
-        else:
-            return self._x_dict
-
-    @x_dict.setter
-    def x_dict(self, value):
-        self._x_dict = value
-
-    @property
-    def x(self):
-        if self._x is None:
-            return self.fluxes.values()
-        else:
-            return self._x
-
-    @x.setter
-    def x(self, value):
-        self._x = value
-
-    @property
-    def y_dict(self):
-        if self._y_dict is None:
-            return self.reduced_costs
-        else:
-            return self._y_dict
-
-    @y_dict.setter
-    def y_dict(self, value):
-        self._y_dict = value
-
-    @property
-    def y(self):
-        if self._y is None:
-            return self.reduced_costs.values()
-        else:
-            return self._y
-
-    @y.setter
-    def y(self, value):
-        self._y = value
-
-    @property
-    def objective_value(self):
-        return self.f
-
-
-class Solution(SolutionBase):
-    """This class mimicks the cobrapy Solution class.
-
-    Attributes
-    ----------
-    fluxes : OrderedDict
-        A dictionary of flux values.
-    reduced_costs : OrderedDict
-        A dictionary of reduced costs.
-
-    Notes
-    -----
-    See also documentation for cobra.core.Solution.Solution for an extensive list of inherited attributes.
     """
 
     def __init__(self, f, x=None,
