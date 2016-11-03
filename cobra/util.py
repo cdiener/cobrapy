@@ -34,8 +34,7 @@ import six
 from numpy.linalg import svd
 from numpy.random import RandomState
 from six.moves import range
-import warnings
-from decorator import decorator
+
 
 logger = logging.getLogger(__name__)
 
@@ -577,10 +576,3 @@ def zip_repeat(long_iter, short_iter):
     """
     for i, j in zip(long_iter, itertools.cycle(short_iter)):
         yield i, j
-
-
-def deprecated(msg):
-    def _d(f, *args, **kwargs):
-        warnings.warn(msg)
-        return f(*args, **kwargs)
-    return decorator(_d)

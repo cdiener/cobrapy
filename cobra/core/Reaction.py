@@ -10,12 +10,8 @@ from six import string_types, iteritems
 from .Object import Object
 from .Gene import Gene, parse_gpr, ast2str
 from .Metabolite import Metabolite
-
-# from cameo ...
-
 from functools import partial
 import hashlib
-
 
 class Frozendict(dict):
     """Read-only dictionary view"""
@@ -99,11 +95,6 @@ class Reaction(Object):
         self._forward_variable = None
 
     # from cameo ...
-
-    @property
-    def reversibility(self):
-        return self._lower_bound < 0 < self._upper_bound
-
     def _get_reverse_id(self):
         """Generate the id of reverse_variable from the reaction's id."""
         return '_'.join((self.id, 'reverse',
@@ -116,35 +107,49 @@ class Reaction(Object):
 
     @property
     def flux_expression(self):
-        """An optlang variable representing the forward flux (if associated
-        with model), otherwise None. Representing the net flux if
-        model.reversible_encoding == 'unsplit' """
-        model = self.model
-        if model is not None:
+        """Forward flux expression
+
+        Returns
+        -------
+        sympy expression:
+            The expression represeenting the the forward flux (if associated
+            with model), otherwise None. Representing the net flux if
+            model.reversible_encoding == 'unsplit' or None if reaction is
+            not associated with a model """
+        if self.model is not None:
             return 1. * self.forward_variable - 1. * self.reverse_variable
         else:
             return None
 
     @property
     def forward_variable(self):
-        """An optlang variable representing the forward flux (if associated
-        with model), otherwise None. """
-        model = self.model
-        if model is not None:
+        """An optlang variable representing the forward flux
+
+        Returns
+        -------
+        optlang.interface.Variable:
+            An optlang variable for the forward flux or None if reaction is
+            not associated with a model.
+        """
+        if self.model is not None:
             if self._forward_variable is None:
-                self._forward_variable = model.solver.variables[
+                self._forward_variable = self.model.solver.variables[
                     self._get_forward_id()]
             assert self._forward_variable.problem is self.model.solver
-
             return self._forward_variable
-            # return model.solver.variables[self._get_forward_id()]
         else:
             return None
 
     @property
     def reverse_variable(self):
-        """An optlang variable representing the reverse flux (if associated
-        with model), otherwise None. """
+        """An optlang variable representing the reverse flux
+
+        Returns
+        -------
+        optlang.interface.Variable:
+            An optlang variable for the reverse flux or None if reaction is
+            not associated with a model.
+        """
         model = self.model
         if model is not None:
             if self._reverse_variable is None:
@@ -152,7 +157,6 @@ class Reaction(Object):
                     self._get_reverse_id()]
             assert self._reverse_variable.problem is self.model.solver
             return self._reverse_variable
-            # return model.solver.variables[self._get_reverse_id()]
         else:
             return None
 
@@ -162,6 +166,8 @@ class Reaction(Object):
 
     @property
     def objective_coefficient(self):
+        """ Get or set the objective coefficient (float)
+        """
         if self.model is not None and self.model.solver.objective is not None:
             coefficients_dict = \
                 self.model.solver.objective.expression.as_coefficients_dict()
@@ -175,10 +181,10 @@ class Reaction(Object):
 
     @objective_coefficient.setter
     def objective_coefficient(self, value):
-        model = self.model
-        if model is not None:
+        if self.model is not None:
             coef_difference = value - self.objective_coefficient
-            model.solver.objective += coef_difference * self.flux_expression
+            self.model.solver.objective += \
+                coef_difference * self.flux_expression
         self._objective_coefficient = value
 
     def __copy__(self):
@@ -193,13 +199,18 @@ class Reaction(Object):
 
     @property
     def lower_bound(self):
+        """Get or set the lower bound
+
+        Setting the lower bound (float) will also adjust the associated optlang
+        variables associated with the reaction. Infeasible combinations,
+        such as a lower bound higher than the current upper bound will
+        implicitly correct the upper bound to zero.
+        """
         return self._lower_bound
 
     @lower_bound.setter
     def lower_bound(self, value):
-        model = self.model
-
-        if model is not None:
+        if self.model is not None:
 
             forward_variable, reverse_variable = \
                 self.forward_variable, self.reverse_variable
@@ -219,6 +230,7 @@ class Reaction(Object):
                     reverse_variable.ub = -1 * value
                 elif value >= 0:
                     forward_variable.ub = value
+                    self._upper_bound = value
                     forward_variable.lb = value
             elif self._lower_bound >= 0:  # forward irreversible
                 if value < 0:
@@ -253,12 +265,18 @@ class Reaction(Object):
 
     @property
     def upper_bound(self):
+        """Get or set the upper bound
+
+        Setting the upper bound (float) will also adjust the associated optlang
+        variables associated with the reaction. Infeasible combinations,
+        such as a upper bound lower than the current lower bound will
+        implicitly correct the lower bound to zero.
+        """
         return self._upper_bound
 
     @upper_bound.setter
     def upper_bound(self, value):
-        model = self.model
-        if model is not None:
+        if self.model is not None:
 
             forward_variable, reverse_variable = \
                 self.forward_variable, self.reverse_variable
@@ -278,6 +296,8 @@ class Reaction(Object):
                     forward_variable.ub = value
                 elif value <= 0:
                     reverse_variable.ub = -1 * value
+                    self._lower_bound = value
+                    reverse_variable.lb = -1 * value
             elif self._lower_bound >= 0:  # forward irreversible
                 if value > 0:
                     try:
@@ -404,15 +424,15 @@ class Reaction(Object):
         the solution.
 
         """
+        warn("use reaction.flux instead", DeprecationWarning)
         try:
             return self._model.solution.x_dict[self.id]
         except Exception as e:
             if self._model is None:
                 raise Exception("not part of a model")
-            not_solved = (not hasattr(self._model, "solution") or
-                          self._model.solution is None or
-                          self._model.solution.status == "NA")
-            if not_solved:
+            if not hasattr(self._model, "solution") or \
+                    self._model.solution is None or \
+                    self._model.solution.status == "NA":
                 raise Exception("model has not been solved")
             if self._model.solution.status != "optimal":
                 raise Exception("model solution was not optimal")
@@ -420,17 +440,17 @@ class Reaction(Object):
 
     @property
     def bounds(self):
-        """ A more convienient bounds structure than seperate upper and lower
-        bounds """
+        """ Get or set the bounds directly from a tuple
 
-        return (self.lower_bound, self.upper_bound)
+        Convenience method for setting upper and lower bounds in one line
+        using a tuple of lower and upper bound
+        """
+        return self.lower_bound, self.upper_bound
 
     @bounds.setter
     def bounds(self, value):
-        """ Set the bounds directly from a tuple """
-
-        self.lower_bound = value[0]
-        self.upper_bound = value[1]
+        lower_bound, upper_bound = value
+        self.change_bounds(lb=lower_bound, ub=upper_bound)
 
     @property
     def reversibility(self):
@@ -439,7 +459,7 @@ class Reaction(Object):
         This is computed from the current upper and lower bounds.
 
         """
-        return self.lower_bound < 0 and self.upper_bound > 0
+        return self._lower_bound < 0 < self._upper_bound
 
     @reversibility.setter
     def reversibility(self, value):
@@ -643,8 +663,7 @@ class Reaction(Object):
         gpr2 = other.gene_reaction_rule.strip()
         if gpr1 != '' and gpr2 != '':
             self.gene_reaction_rule = "(%s) and (%s)" % \
-                                      (self.gene_reaction_rule,
-                                       other.gene_reaction_rule)
+                (self.gene_reaction_rule, other.gene_reaction_rule)
         elif gpr1 != '' and gpr2 == '':
             self.gene_reaction_rule = gpr1
         elif gpr1 == '' and gpr2 != '':
@@ -726,8 +745,7 @@ class Reaction(Object):
 
         """
         # from cameo ...
-        if combine:
-            old_coefficients = self.metabolites
+        old_coefficients = self.metabolites if combine else {}
         # ...
 
         _id_to_metabolites = {str(x): x for x in self._metabolites}
@@ -824,10 +842,8 @@ class Reaction(Object):
 
     def build_reaction_string(self, use_metabolite_names=False):
         """Generate a human readable reaction string"""
-
         def format(number):
             return "" if number == 1 else str(number).rstrip(".") + " "
-
         id_type = 'id'
         if use_metabolite_names:
             id_type = 'name'
@@ -892,14 +908,18 @@ class Reaction(Object):
         self._genes.discard(cobra_gene)
         cobra_gene._reaction.discard(self)
 
-    # def knock_out(self):
-    #     """Change the upper and lower bounds of the reaction to 0."""
-    #     self.lower_bound = 0
-    #     self.upper_bound = 0
-
     def change_bounds(self, lb=None, ub=None, time_machine=None):
-        """Changes one or both of the reaction bounds and allows the changes
-        to be reversed with a TimeMachine """
+        """Changes one or both of the reaction bounds
+
+        Parameters
+        ----------
+        lb: float
+            new lower bound
+        ub: float
+            new upper bound
+        time_machine: TimeMachine
+            allows the changes to be reversed with a TimeMachine
+        """
         if time_machine is None:
             if lb is not None:
                 self.lower_bound = lb
@@ -921,7 +941,7 @@ class Reaction(Object):
 
         Parameters
         ----------
-        time_machine = TimeMachine
+        time_machine: TimeMachine
             A time TimeMachine instance can be provided to undo the knockout
             eventually.
 

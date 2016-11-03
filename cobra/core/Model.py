@@ -11,23 +11,15 @@ from .Solution import Solution, LazySolution
 from .Reaction import Reaction
 from .DictList import DictList
 
-# from cameo ...
 import six
 import time
 import types
 import optlang
 from sympy.core.singleton import S
-from pandas import DataFrame
 from functools import partial
 from cobra.util import AutoVivification
-
 from cobra import exceptions, config
 
-
-# Note, when a reaction is added to the Model it will no longer keep personal
-# instances of its Metabolites, it will reference Model.metabolites to improve
-# performance.  When doing this, take care to monitor metabolite coefficients.
-# Do the same for Model.reactions[:].genes and Model.genes
 
 class Model(Object):
     """Metabolic Model
@@ -80,7 +72,7 @@ class Model(Object):
 
     @property
     def solver(self):
-        """Attached solver instance.
+        """Get or set the attached solver instance.
 
         Very useful for accessing the optimization problem directly.
         Furthermore, can be used to define additional non-metabolic
@@ -117,13 +109,13 @@ class Model(Object):
 
     @property
     def description(self):
-        warn("description deprecated")
+        warn("description deprecated", DeprecationWarning)
         return self.name if self.name is not None else ""
 
     @description.setter
     def description(self, value):
         self.name = value
-        warn("description deprecated")
+        warn("description deprecated", DeprecationWarning)
 
     def __add__(self, other_model):
         """Adds two models. +
@@ -319,7 +311,8 @@ class Model(Object):
 
     def _populate_solver(self, reaction_list, metabolite_list=None):
         """Populate attached solver with constraints and variables that
-        model the provided reactions. """
+        model the provided reactions.
+        """
         constraint_terms = AutoVivification()
         if metabolite_list is not None:
             for met in metabolite_list:
@@ -528,6 +521,10 @@ class Model(Object):
         """
         Changes the objective of the model to the given value. Allows
         passing a time machine to revert the change later
+
+        Parameters
+        ----------
+
         """
         if time_machine is None:
             self.objective = value
@@ -537,19 +534,66 @@ class Model(Object):
                                       self.objective))
 
     @property
-    def objective(self):
-        """The model objective."""
-        # TODO: the following should check if the model objective actually
-        # contains only reactions
+    def objective_reactions(self):
         return {reaction: reaction.objective_coefficient
                 for reaction in self.reactions
                 if reaction.objective_coefficient != 0}
 
+    @objective_reactions.setter
+    def objective_reactions(self, value):
+        """Get or set solver objective based on a list of reactions
+
+        Parameters
+        ----------
+        value: list or dict of `Reactions`
+            if value is a list, then each element should be a reaction. if
+            it is a dictionary, then each key is a reaction identifier and
+            the associated value the new objective coefficient for that
+            reaction.
+        """
+        for reaction in self.reactions:
+            reaction.objective_coefficient = 0.
+        for item in value:
+            if isinstance(item, int):
+                reaction = self.reactions[item]
+            elif isinstance(item, six.string_types):
+                reaction = self.reactions.get_by_id(item)
+            elif hasattr(item, 'id'):
+                reaction = self.reactions.get_by_id(item.id)
+            else:
+                raise ValueError('item in iterable cannot be %s' %
+                                 type(item))
+            if isinstance(value, list):
+                reaction.objective_coefficient = 1
+            if isinstance(value, dict):
+                reaction.objective_coefficient = value[item]
+
+    @property
+    def objective(self):
+        """Get or set the solver objective
+
+        Before introduction of the optlang based solver interfaces,
+        this function always returned the objective reactions as a list.
+        With optlang, the objective is not limited to reactions making the
+        return value ambiguous. Henceforth, use `objective_reactions` to get
+        a list (empty if there are none), or `model.solver.objective` for
+        the complete solver objective. In a future release of cobrapy,
+        this function will return the solver objective.
+
+        The set value can be string, int, Reaction,
+        solver.interface.Objective or sympy expression. Strings should be
+        reaction identifiers, integers are reaction indices in the current
+        model, Reaction, solver.interface.Objective or sympy expressions are
+        directly interpreted as new objectives
+        """
+        warn(("use objective_reactions or model.solver.objective "
+              "instead. A future version of cobra will not "
+              "necessarily return a list of reactions."),
+              DeprecationWarning)
+        return self.objective_reactions
+
     @objective.setter
     def objective(self, value):
-        # are all these ways of setting the objective necessary?
-        for reaction in self.reactions:  # cobra does this / cameo doesn't
-            reaction.objective_coefficient = 0.
         if isinstance(value, six.string_types):
             try:
                 value = self.reactions.get_by_id(value)
@@ -570,20 +614,9 @@ class Model(Object):
             self.solver.objective = self.solver.interface.Objective(
                 value, sloppy=False)
         elif isinstance(value, (dict, list)):
-            for item in value:
-                if isinstance(item, int):
-                    reaction = self.reactions[item]
-                elif isinstance(item, six.string_types):
-                    reaction = self.reactions.get_by_id(item)
-                elif hasattr(item, 'id'):
-                    reaction = self.reactions.get_by_id(item.id)
-                else:
-                    raise ValueError('item in iterable cannot be %s' %
-                                     type(item))
-                if isinstance(value, list):
-                    reaction.objective_coefficient = 1
-                if isinstance(value, dict):
-                    reaction.objective_coefficient = value[item]
+            warn("use model.objective_reactions for lists and dictionaries",
+                 DeprecationWarning)
+            self.objective_reactions = value
         # TODO(old): maybe the following should be allowed
         # elif isinstance(value, optlang.interface.Objective):
         # self.solver.objective = self.solver.interface.Objective.clone(value)
@@ -612,29 +645,6 @@ class Model(Object):
             return model_summary(self, **kwargs)
         except ImportError:
             warn('Summary methods require pandas/tabulate')
-
-    @property
-    def medium(self):
-        """Current medium."""
-        reaction_ids = []
-        reaction_names = []
-        lower_bounds = []
-        upper_bounds = []
-        for ex in self.exchanges:
-            metabolite = list(ex.metabolites.keys())[0]
-            coeff = ex.metabolites[metabolite]
-            if coeff * ex.lower_bound > 0:
-                reaction_ids.append(ex.id)
-                reaction_names.append(ex.name)
-                lower_bounds.append(ex.lower_bound)
-                upper_bounds.append(ex.upper_bound)
-
-        return DataFrame({'reaction_id': reaction_ids,
-                          'reaction_name': reaction_names,
-                          'lower_bound': lower_bounds,
-                          'upper_bound': upper_bounds},
-                         index=None, columns=['reaction_id', 'reaction_name',
-                                              'lower_bound', 'upper_bound'])
 
     @property
     def exchanges(self):

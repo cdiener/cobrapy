@@ -2,7 +2,6 @@ from warnings import warn
 import re
 
 from six import iteritems
-
 from .Species import Species
 
 # Numbers are not required because of the |(?=[A-Z])? block. See the
@@ -109,6 +108,7 @@ class Metabolite(Species):
         the solution.
 
         """
+        warn("use metabolite.shadow_price instead", DeprecationWarning)
         try:
             return self._model.solution.y_dict[self.id]
         except Exception as e:
@@ -121,6 +121,26 @@ class Metabolite(Species):
             if self._model.solution.status != "optimal":
                 raise Exception("model solution was not optimal")
             raise e  # Not sure what the exact problem was
+
+    def shadow_price(self):
+        """The shadow price for the metabolite in the most recent solution
+
+        Shadow prices are computed from the dual values of the bounds in
+        the solution.
+
+        """
+        try:
+            return self._model.solution.shadow_prices[self.id]
+        except Exception as e:
+            if self._model is None:
+                raise Exception("not part of a model")
+            if not hasattr(self._model, "solution") or \
+                    self._model.solution is None or \
+                    self._model.solution.status == "NA":
+                raise Exception("model has not been solved")
+            if self._model.solution.status != "optimal":
+                raise Exception("model solution was not optimal")
+            raise e
 
     def remove_from_model(self, method='subtractive', **kwargs):
         """Removes the association from self.model

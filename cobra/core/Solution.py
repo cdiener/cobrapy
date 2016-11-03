@@ -6,10 +6,14 @@ import time
 import datetime
 
 import cobra
-from pandas import DataFrame, Series
+
+try:
+    import pandas
+except ImportError:
+    pandas = None
 
 from cobra.exceptions import UndefinedSolution
-
+from warnings import warn
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,40 +29,13 @@ class SolutionBase(object):
         else:
             return super(SolutionBase, cls).__new__(cls)
 
-    def __init__(self, model):
+    def __init__(self, model, *args, **kwargs):
+        self.f = None
         self.model = model
         self._x = None
         self._y = None
         self._x_dict = None
         self._y_dict = None
-
-    @property
-    def data_frame(self):
-        return DataFrame({'fluxes': Series(self.fluxes),
-                          'reduced_costs': Series(self.reduced_costs)})
-
-    def __str__(self):
-        """A pandas DataFrame representation of the solution.
-
-        Returns
-        -------
-        pandas.DataFrame
-        """
-        return str(self.data_frame)
-
-    def _repr_html_(self):
-        return self.data_frame._repr_html_()
-
-    # def as_cobrapy_solution(self):
-    #     """Convert into a cobrapy Solution.
-    #
-    #     Returns
-    #     -------
-    #     cobra.core.Solution.Solution
-    #     """
-    #     return Solution(self.f, x=self.x,
-    #                     x_dict=self.x_dict, y=self.y, y_dict=self.y_dict,
-    #                     the_solver=None, the_time=0, status=self.status)
 
     def get_primal_by_id(self, reaction_id):
         """Return a flux/primal value for a reaction.
@@ -72,6 +49,7 @@ class SolutionBase(object):
 
     @property
     def x_dict(self):
+        warn("use solution.fluxes instead", DeprecationWarning)
         if self._x_dict is None:
             return self.fluxes
         else:
@@ -79,10 +57,12 @@ class SolutionBase(object):
 
     @x_dict.setter
     def x_dict(self, value):
+        warn("not used", DeprecationWarning)
         self._x_dict = value
 
     @property
     def x(self):
+        warn("use solution.fluxes.values instead", DeprecationWarning)
         if self._x is None:
             return self.fluxes.values()
         else:
@@ -90,10 +70,12 @@ class SolutionBase(object):
 
     @x.setter
     def x(self, value):
+        warn("not used", DeprecationWarning)
         self._x = value
 
     @property
     def y_dict(self):
+        warn("use solution.reduced_costs instead", DeprecationWarning)
         if self._y_dict is None:
             return self.reduced_costs
         else:
@@ -105,6 +87,7 @@ class SolutionBase(object):
 
     @property
     def y(self):
+        warn("use solution.reduced_costs.values instead", DeprecationWarning)
         if self._y is None:
             return self.reduced_costs.values()
         else:
@@ -112,15 +95,23 @@ class SolutionBase(object):
 
     @y.setter
     def y(self, value):
+        warn("not used", DeprecationWarning)
         self._y = value
 
     @property
     def objective_value(self):
         return self.f
 
+    def __repr__(self):
+        if self.f is None:
+            return "<Solution '%s' at 0x%x>" % (self.status, id(self))
+        return "<Solution %.2f at 0x%x>" % (self.f, id(self))
+
 
 class Solution(SolutionBase):
-    """This class mimicks the cobrapy Solution class.
+    """Stores the solution from optimizing a cobra.Model. This is
+    used to provide a single interface to results from different
+    solvers that store their values in different ways.
 
     Attributes
     ----------
@@ -157,7 +148,7 @@ class Solution(SolutionBase):
         self._metabolite_ids = [m.id for m in self.model.metabolites]
 
     def __dir__(self):
-        # Hide 'cobrapy' attributes and methods from user.
+        # Hide deprecated attributes and methods from user.
         fields = sorted(dir(type(self)) + list(self.__dict__.keys()))
         fields.remove('x')
         fields.remove('y')
@@ -200,6 +191,21 @@ class LazySolution(SolutionBase):
         else:
             self._time_stamp = time.time()
         self._f = None
+
+    @property
+    def data_frame(self):
+        if pandas:
+            return pandas.DataFrame(
+                {'fluxes': pandas.Series(self.fluxes),
+                 'reduced_costs': pandas.Series(self.reduced_costs)})
+        else:
+            warn("pandas not available")
+
+    def _repr_html_(self):
+        if pandas:
+            return self.data_frame._repr_html_()
+        else:
+            warn("pandas not available")
 
     def _check_freshness(self):
         """Raises an exceptions if the solution might have become invalid
@@ -276,15 +282,6 @@ class LazySolution(SolutionBase):
         self._check_freshness()
         return self.model.reactions.get_by_id(reaction_id).flux
 
-    def __dir__(self):
-        # Hide 'cobrapy' attributes and methods from user.
-        fields = sorted(dir(type(self)) + list(self.__dict__.keys()))
-        fields.remove('x')
-        fields.remove('y')
-        fields.remove('x_dict')
-        fields.remove('y_dict')
-        return fields
-
 
 class LegacySolution(object):
     """Stores the solution from optimizing a cobra.Model. This is
@@ -318,10 +315,5 @@ class LegacySolution(object):
 
     def dress_results(self, model):
         """.. warning :: deprecated"""
-        from warnings import warn
-        warn("unnecessary to call this deprecated function")
-
-    def __repr__(self):
-        if self.f is None:
-            return "<Solution '%s' at 0x%x>" % (self.status, id(self))
-        return "<Solution %.2f at 0x%x>" % (self.f, id(self))
+        warn("unnecessary to call this deprecated function",
+             DeprecationWarning)
