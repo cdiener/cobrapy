@@ -39,6 +39,14 @@ class Metabolite(Species):
         self._constraint_sense = 'E'
         self._bound = 0.
 
+    def _set_id_with_model(self, value):
+        if value in self.model.metabolites:
+            raise ValueError("The model already contains a metabolite with "
+                             "the id:", value)
+        self.model.solver.constraints[self.id].name = value
+        self._id = value
+        self.model.metabolites._generate_index()
+
     @property
     def constraint(self):
         if self.model is not None:
@@ -156,7 +164,7 @@ class Metabolite(Species):
         # with multiple Models
         if "model" in kwargs:
             warn("model argument deprecated")
-
+        model = self._model
         self._model.metabolites.remove(self)
         self._model = None
         if method.lower() == 'subtractive':
@@ -168,6 +176,7 @@ class Metabolite(Species):
                 x.remove_from_model()
         else:
             raise Exception(method + " is not 'subtractive' or 'destructive'")
+        model.solver.remove(model.solver.constraints[self.id])
 
     def summary(self, **kwargs):
         """Print a summary of the reactions which produce and consume this
@@ -191,6 +200,21 @@ class Metabolite(Species):
             return metabolite_summary(self, **kwargs)
         except ImportError:
             warn('Summary methods require pandas/tabulate')
+
+    def _repr_html_(self):
+        return """
+        <table>
+            <tr>
+                <td><strong>Id</strong></td><td>%s</td>
+            </tr>
+            <tr>
+                <td><strong>Name</strong></td><td>%s</td>
+            </tr>
+            <tr>
+                <td><strong>Formula</strong></td><td>%s</td>
+            </tr>
+        </table>""" % (self.id, self.name, self.formula)
+
 
 elements_and_molecular_weights = {
     'H':   1.007940,

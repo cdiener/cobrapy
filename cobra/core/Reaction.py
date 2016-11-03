@@ -6,12 +6,12 @@ from copy import copy, deepcopy
 from warnings import warn
 
 from six import string_types, iteritems
-
 from .Object import Object
 from .Gene import Gene, parse_gpr, ast2str
 from .Metabolite import Metabolite
 from functools import partial
 import hashlib
+
 
 class Frozendict(dict):
     """Read-only dictionary view"""
@@ -95,6 +95,17 @@ class Reaction(Object):
         self._forward_variable = None
 
     # from cameo ...
+    def _set_id_with_model(self, value):
+        if value in self.model.reactions:
+            raise ValueError("The model already contains a reaction with"
+                             " the id:", value)
+        forward_variable = self.forward_variable
+        reverse_variable = self.reverse_variable
+        self._id = value
+        self.model.reactions._generate_index()
+        forward_variable.name = self._get_forward_id()
+        reverse_variable.name = self._get_reverse_id()
+
     def _get_reverse_id(self):
         """Generate the id of reverse_variable from the reaction's id."""
         return '_'.join((self.id, 'reverse',
@@ -628,20 +639,28 @@ class Reaction(Object):
         metabolite_id: str or :class:`~cobra.core.Metabolite.Metabolite`
 
         """
-        the_metabolite = metabolite_id
-        if isinstance(the_metabolite, string_types):
-            found_match = None
-            for possible_match in self._metabolites:
-                if possible_match.id == the_metabolite:
-                    found_match = possible_match
-                    break
-            if found_match is None:
-                raise KeyError(
-                    "No metabolite named %s in the reaction" % the_metabolite)
+        if self.model is None:
+            the_metabolite = metabolite_id
+            if isinstance(the_metabolite, string_types):
+                found_match = None
+                for possible_match in self._metabolites:
+                    if possible_match.id == the_metabolite:
+                        found_match = possible_match
+                        break
+                if found_match is None:
+                    raise KeyError("No metabolite named %s in the reaction" %
+                                   the_metabolite)
+                else:
+                    the_metabolite = found_match
+            the_coefficient = self._metabolites.pop(the_metabolite)
+            the_metabolite._reaction.remove(self)
+        else:
+            if isinstance(metabolite_id, string_types):
+                met = self.model.metabolites.get_by_id(metabolite_id)
             else:
-                the_metabolite = found_match
-        the_coefficient = self._metabolites.pop(the_metabolite)
-        the_metabolite._reaction.remove(self)
+                met = metabolite_id
+            the_coefficient = self.metabolites[met]
+            self.add_metabolites({met: -the_coefficient}, combine=True)
         return the_coefficient
 
     def __add__(self, other):
@@ -663,7 +682,8 @@ class Reaction(Object):
         gpr2 = other.gene_reaction_rule.strip()
         if gpr1 != '' and gpr2 != '':
             self.gene_reaction_rule = "(%s) and (%s)" % \
-                (self.gene_reaction_rule, other.gene_reaction_rule)
+                                      (self.gene_reaction_rule,
+                                       other.gene_reaction_rule)
         elif gpr1 != '' and gpr2 == '':
             self.gene_reaction_rule = gpr1
         elif gpr1 == '' and gpr2 != '':
@@ -842,8 +862,10 @@ class Reaction(Object):
 
     def build_reaction_string(self, use_metabolite_names=False):
         """Generate a human readable reaction string"""
+
         def format(number):
             return "" if number == 1 else str(number).rstrip(".") + " "
+
         id_type = 'id'
         if use_metabolite_names:
             id_type = 'name'
@@ -920,21 +942,17 @@ class Reaction(Object):
         time_machine: TimeMachine
             allows the changes to be reversed with a TimeMachine
         """
-        if time_machine is None:
-            if lb is not None:
-                self.lower_bound = lb
-            if ub is not None:
-                self.upper_bound = ub
-        else:
-            old_lb, old_ub = self.lower_bound, self.upper_bound
-            if lb is not None:
-                time_machine(do=partial(setattr, self, "lower_bound", lb),
-                             undo=partial(setattr, self, "lower_bound",
-                                          old_lb))
-            if ub is not None:
-                time_machine(do=partial(setattr, self, "upper_bound", ub),
-                             undo=partial(setattr, self, "upper_bound",
-                                          old_ub))
+        if time_machine is not None:
+            time_machine(do=int,
+                         undo=partial(setattr, self, "lower_bound",
+                                      self.lower_bound))
+            time_machine(do=int,
+                         undo=partial(setattr, self, "upper_bound",
+                                      self.upper_bound))
+        if lb is not None:
+            self.lower_bound = lb
+        if ub is not None:
+            self.upper_bound = ub
 
     def knock_out(self, time_machine=None):
         """Knockout reaction by setting its bounds to zero.
@@ -1043,3 +1061,28 @@ class Reaction(Object):
                         print("unknown metabolite '%s' created" % met_id)
                     met = Metabolite(met_id)
                 self.add_metabolites({met: num})
+
+    def _repr_html_(self):
+        return """
+        <table>
+            <tr>
+                <td><strong>Id</strong></td><td>%s</td>
+            </tr>
+            <tr>
+                <td><strong>Name</strong></td><td>%s</td>
+            </tr>
+            <tr>
+                <td><strong>Stoichiometry</strong></td><td>%s</td>
+            </tr>
+            <tr>
+                <td><strong>GPR</strong></td><td>%s</td>
+            </tr>
+            <tr>
+                <td><strong>Lower bound</strong></td><td>%f</td>
+            </tr>
+            <tr>
+                <td><strong>Upper bound</strong></td><td>%f</td>
+            </tr>
+        </table>
+        """ % (self.id, self.name, self.reaction, self.gene_reaction_rule,
+               self.lower_bound, self.upper_bound)
