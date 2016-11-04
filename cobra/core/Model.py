@@ -588,8 +588,7 @@ class Model(Object):
         """
         warn(("use objective_reactions or model.solver.objective "
               "instead. A future version of cobra will not "
-              "necessarily return a list of reactions."),
-              DeprecationWarning)
+              "necessarily return a list of reactions."), DeprecationWarning)
         return self.objective_reactions
 
     @objective.setter
