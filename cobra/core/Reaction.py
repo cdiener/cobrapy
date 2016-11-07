@@ -143,11 +143,12 @@ class Reaction(Object):
     def objective_coefficient(self):
         """ Get or set the objective coefficient (float)
         """
-        if self.model is not None and self.model.solver.objective is not None:
-            coefficients_dict = \
-                self.model.solver.objective.expression.as_coefficients_dict()
-            coef = coefficients_dict.get(self.variable, 0)
-            self._objective_coefficient = float(coef)
+        # This is really slow...
+        # if self.model is not None and
+        #    self.model.solver.objective is not None:
+        #    ex = self.model.solver.objective.expression
+        #    coef = ex.coeff(self.variable)
+        #    self._objective_coefficient = float(coef)
         return self._objective_coefficient
 
     @objective_coefficient.setter

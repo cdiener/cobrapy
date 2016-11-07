@@ -326,7 +326,7 @@ class Model(Object):
 
         for reaction in reaction_list:
             variable = self.solver.interface.Variable(
-                    reaction.id, lb=reaction.lower_bound,
+                    reaction.id, lb=reaction._lower_bound,
                     ub=reaction._upper_bound)
             self.solver.add(variable)
             self.solver.update()
