@@ -27,12 +27,9 @@ from itertools import islice
 from time import time
 from uuid import uuid1
 
-import numpy as np
 import pandas
 import pip
 import six
-from numpy.linalg import svd
-from numpy.random import RandomState
 from six.moves import range
 
 logger = logging.getLogger(__name__)
@@ -237,41 +234,6 @@ class ProblemCache(object):
         self.transaction_id = None
 
 
-class RandomGenerator(object):
-    def __init__(self, seed=None):
-        self._random = RandomState(seed=seed)
-
-    def seed(self, seed):
-        self._random = RandomState(seed=seed)
-
-    def random(self):
-        return self._random.rand()
-
-    def randint(self, a, b=None):
-        if b is None:
-            b = a
-            a = 0
-        r = self._random.randint(a, high=b, size=1)
-        return r[0]
-
-    def sample(self, population, k):
-        if k == 0:
-            return []
-        return list(self._random.choice(population, size=k, replace=False))
-
-    def __getattr__(self, attr):
-        return getattr(self._random, attr)
-
-    def __getstate__(self):
-        return {'_random': self._random}
-
-    def __setstate__(self, d):
-        self._random = d['_random']
-
-    def uniform(self, low=0.0, high=1.0, size=None):
-        return self._random.uniform(low, high, size)
-
-
 class Singleton(object):
     """
     Singleton class to be extended
@@ -470,48 +432,6 @@ def generate_colors(n):
         color = tuple([rgb[0] * 256, rgb[1] * 256, rgb[2] * 256])
         color_map[i] = '#%02x%02x%02x' % color
     return color_map
-
-
-# Taken from http://wiki.scipy.org/Cookbook/RankNullspace
-def nullspace(A, atol=1e-13, rtol=0):
-    """Compute an approximate basis for the nullspace of A.
-
-    The algorithm used by this function is based on the singular value
-    decomposition of `A`.
-
-    Parameters
-    ----------
-    A : ndarray
-        A should be at most 2-D.  A 1-D array with length k will be treated
-        as a 2-D with shape (1, k)
-    atol : float
-        The absolute tolerance for a zero singular value.  Singular values
-        smaller than `atol` are considered to be zero.
-    rtol : float
-        The relative tolerance.  Singular values less than rtol*smax are
-        considered to be zero, where smax is the largest singular value.
-
-    If both `atol` and `rtol` are positive, the combined tolerance is the
-    maximum of the two; that is::
-        tol = max(atol, rtol * smax)
-    Singular values smaller than `tol` are considered to be zero.
-
-    Return value
-    ------------
-    ns : ndarray
-        If `A` is an array with shape (m, k), then `ns` will be an array
-        with shape (k, n), where n is the estimated dimension of the
-        nullspace of `A`.  The columns of `ns` are a basis for the
-        nullspace; each element in numpy.dot(A, ns) will be approximately
-        zero.
-    """
-
-    A = np.atleast_2d(A)
-    u, s, vh = svd(A)
-    tol = max(atol, rtol * s[0])
-    nnz = (s >= tol).sum()
-    ns = vh[nnz:].conj().T
-    return ns
 
 
 def memoize(function, memo={}):
