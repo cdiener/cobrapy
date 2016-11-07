@@ -207,7 +207,10 @@ class Model(Object):
         except Exception:  # pragma: no cover
             new._solver = copy(self.solver)  # pragma: no cover
 
-        new.solution = deepcopy(self.solution)
+        # No use in copying it, also circular dependencies
+        new._timestamp_last_optimization = None
+        new.solution = LazySolution(self)
+
         return new
 
     def add_metabolites(self, metabolite_list):
@@ -322,36 +325,10 @@ class Model(Object):
                 self.solver.add(constraint)
 
         for reaction in reaction_list:
-
-            if reaction.reversibility:
-                forward_variable = self.solver.interface.Variable(
-                    reaction._get_forward_id(), lb=0,
+            variable = self.solver.interface.Variable(
+                    reaction.id, lb=reaction.lower_bound,
                     ub=reaction._upper_bound)
-                reverse_variable = self.solver.interface.Variable(
-                    reaction._get_reverse_id(), lb=0,
-                    ub=-1 * reaction._lower_bound)
-            elif 0 == reaction.lower_bound and reaction.upper_bound == 0:
-                forward_variable = self.solver.interface.Variable(
-                    reaction._get_forward_id(), lb=0, ub=0)
-                reverse_variable = self.solver.interface.Variable(
-                    reaction._get_reverse_id(), lb=0, ub=0)
-            elif reaction.lower_bound >= 0:
-                forward_variable = self.solver.interface.Variable(
-                    reaction.id,
-                    lb=reaction._lower_bound,
-                    ub=reaction._upper_bound)
-                reverse_variable = self.solver.interface.Variable(
-                    reaction._get_reverse_id(), lb=0, ub=0)
-            elif reaction.upper_bound <= 0:
-                forward_variable = self.solver.interface.Variable(reaction.id,
-                                                                  lb=0, ub=0)
-                reverse_variable = self.solver.interface.Variable(
-                    reaction._get_reverse_id(),
-                    lb=-1 * reaction._upper_bound,
-                    ub=-1 * reaction._lower_bound)
-
-            self.solver.add(forward_variable)
-            self.solver.add(reverse_variable)
+            self.solver.add(variable)
             self.solver.update()
 
             for metabolite, coeff in six.iteritems(reaction.metabolites):
@@ -364,8 +341,7 @@ class Model(Object):
                         lb=0, ub=0)
                     self.solver.add(constraint, sloppy=True)
 
-                constraint_terms[constraint][forward_variable] = coeff
-                constraint_terms[constraint][reverse_variable] = -coeff
+                constraint_terms[constraint][variable] = coeff
 
             objective_coeff = reaction._objective_coefficient
             if objective_coeff != 0.:
@@ -375,8 +351,7 @@ class Model(Object):
                 if self.solver.objective.direction == 'min':
                     self.solver.objective.direction = 'max'
                 self.solver.objective.set_linear_coefficients(
-                    {forward_variable: objective_coeff,
-                     reverse_variable: -objective_coeff})
+                    {variable: objective_coeff})
 
         self.solver.update()
         for constraint, terms in six.iteritems(constraint_terms):
