@@ -4,7 +4,10 @@ import copy
 import os
 
 import cobra
-import numpy
+try: 
+    import numpy
+except ImportError:
+    numpy = None
 import optlang
 
 try:
@@ -755,6 +758,7 @@ class TestSolverBasedModel:
         assert round(abs(model_copy.optimize().f - 0.8739215069684306),
                      7) == 0
 
+    @pytest.mark.skipif(not numpy, reason='no numpy available')
     def test_copy_preserves_existing_solution(self, solved_model):
         solution, model = solved_model
         model_cp = copy.copy(model)
