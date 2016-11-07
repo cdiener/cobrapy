@@ -17,7 +17,6 @@ from __future__ import absolute_import, print_function
 import logging
 
 from .parallel import SequentialView
-from .util import in_ipnb
 
 logging.getLogger().setLevel(logging.ERROR)
 
@@ -41,19 +40,6 @@ try:
     solvers['cplex'] = cplex_interface
 except ImportError:
     pass
-
-# Determine if bokeh is available
-# TODO: This should also check if a bokeh server is actually running.
-try:
-    from bokeh.plotting import output_notebook
-
-    if in_ipnb():
-        output_notebook(hide_banner=True)
-    use_bokeh = True
-except ImportError:
-    use_bokeh = False
-
-bokeh_url = 'default'
 
 # Set default parallelization view
 default_view = SequentialView()
