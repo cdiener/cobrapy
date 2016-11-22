@@ -56,7 +56,6 @@ cache:
 
 install:
   - "set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
-  - "powershell appveyor\\install.ps1"
   - ps: Start-FileDownload 'https://bitbucket.org/gutworth/six/raw/default/six.py'
   - "%WITH_COMPILER% python appveyor/build_glpk.py"
   - ps: |
