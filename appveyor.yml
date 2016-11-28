@@ -82,7 +82,7 @@ artifacts:
 
 deploy_script:
   - ps: |
-      if($env:appveyor_repo_tag -eq "True" -And $env:CONDA -neq "true") {
+      if($env:appveyor_repo_tag -eq "True" -And $env:CONDA -ne "true") {
           Invoke-Expression "twine upload dist/* --username $env:PYPI_USERNAME --password $env:PYPI_PASSWORD"
       }
 
