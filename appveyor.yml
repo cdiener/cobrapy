@@ -59,7 +59,7 @@ install:
   - "set PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
   - "%WITH_COMPILER% python appveyor/build_glpk.py"
   - ps: |
-      if ($env:CONDA) {
+      if ($env:CONDA -eq "true") {
           conda config --set always_yes yes --set changeps1 no;
           conda install -q pip } else {
           python -m pip install pip setuptools wheel --upgrade }
