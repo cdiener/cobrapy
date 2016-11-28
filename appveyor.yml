@@ -11,12 +11,12 @@ environment:
     - PYTHON: "C:\\Miniconda-x64"
       PYTHON_VERSION: "2.7.12"
       PYTHON_ARCH: "64"
-      CONDA: 1
+      CONDA: true
 
     - PYTHON: "C:\\Miniconda35-x64"
       PYTHON_VERSION: "3.5.2"
       PYTHON_ARCH: "64"
-      CONDA: 1
+      CONDA: true
 
     - PYTHON: "C:\\Python27"
       PYTHON_VERSION: "2.7.12"
@@ -82,7 +82,7 @@ artifacts:
 
 deploy_script:
   - ps: |
-      if($env:appveyor_repo_tag -eq "True" -And $env:CONDA -neq 1) {
+      if($env:appveyor_repo_tag -eq "True" -And $env:CONDA -neq "true") {
           Invoke-Expression "twine upload dist/* --username $env:PYPI_USERNAME --password $env:PYPI_PASSWORD"
       }
 
