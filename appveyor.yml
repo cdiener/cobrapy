@@ -60,12 +60,12 @@ install:
   - "%WITH_COMPILER% python appveyor/build_glpk.py"
   - ps: |
       if ($env:CONDA) {
-          conda config --set always_yes yes --set changeps1 no;
+          conda config --set always_yes yes --set changeps1 no --set quiet yes;
           conda install pip } else {
           python -m pip install pip setuptools wheel --upgrade }
   - python -m pip install --upgrade pytest
   - python -m pip install pytest-cov pytest-benchmark
-  - if %CONDA% conda install numpy scipy
+  - if defined CONDA conda install numpy scipy
   - python -m pip install swiglpk optlang sympy python-libsbsml decorator Cython jsonschema twine pypandoc==1.1.3
 
 build: off
@@ -75,7 +75,7 @@ test_script:
   - "%WITH_COMPILER% python -m pytest --cov=cobra --benchmark-skip"
 
 after_test:
-  - if not %CONDA% %WITH_COMPILER% python setup.py bdist_wheel bdist_wininst
+  - if not defined CONDA %WITH_COMPILER% python setup.py bdist_wheel bdist_wininst
 
 artifacts:
   - path: dist\*
