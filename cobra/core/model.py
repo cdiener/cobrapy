@@ -59,8 +59,6 @@ class Model(Object):
         for y in ['reactions', 'genes', 'metabolites']:
             for x in getattr(self, y):
                 x._model = self
-                if y == 'reactions':
-                    x._reset_var_cache()
         if not hasattr(self, "name"):
             self.name = None
 
@@ -135,8 +133,6 @@ class Model(Object):
         if self.problem == interface:
             return
 
-        for reaction in self.reactions:
-            reaction._reset_var_cache()
         self._solver = interface.Model.clone(self._solver)
 
     @property
@@ -297,8 +293,6 @@ class Model(Object):
                 new_reaction._genes.add(new_gene)
                 new_gene._reaction.add(new_reaction)
 
-        for reaction in new.reactions:
-            reaction._reset_var_cache()
         try:
             new._solver = deepcopy(self.solver)
             # Cplex has an issue with deep copies
@@ -435,7 +429,6 @@ class Model(Object):
 
         # Add reactions. Also take care of genes and metabolites in the loop
         for reaction in reaction_list:
-            reaction._reset_var_cache()
             reaction._model = self  # the reaction now points to the model
             # keys() is necessary because the dict will be modified during
             # the loop
